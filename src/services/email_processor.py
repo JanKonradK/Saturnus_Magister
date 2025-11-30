@@ -1,289 +1,328 @@
+"""
+Main email processing orchestrator for Saturnus_Magister.
+Coordinates Gmail monitoring, classification, job matching, and TickTick routing.
+"""
+
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
-from typing import Optional
-import sys
+from datetime import datetime, timedelta
+from typing import Optional, List
+from uuid import UUID
 
 from src.clients.gmail import GmailClient
-from src.clients.ticktick import TickTickClient, EisenhowerQuadrant
+from src.clients.ticktick import TickTickClient
 from src.ai.classifier import EmailClassifier
 from src.ai.job_matcher import JobMatcher
-from src.db.repository import Repository
-from src.db.models import EmailDirection, EmailCategory, Sentiment, EffortLevel
+from src.db.repository import DatabaseRepository
+from src.db.models import (
+    EmailModel,
+    EmailJobMatchModel,
+    TickTickTaskModel,
+    ManualReviewQueueModel,
+    ResponseAnalyticsModel,
+    EmailCategory,
+    Sentiment,
+    MatchMethod,
+)
+from src.services.task_router import TaskRouter
+from src.services.job_linker import JobLinker
 from src.config import settings
 
+
 class EmailProcessor:
-    """
-    Main email processing orchestrator.
-    Uses Python 3.14 free-threading for true parallel processing.
-    """
+    """Main orchestrator for email processing pipeline."""
 
     def __init__(self):
-        self.gmail = GmailClient()
+        self.gmail_client = GmailClient()
+        self.ticktick_client = TickTickClient()
         self.classifier = EmailClassifier()
-        self.ticktick = TickTickClient()
-        self.db = Repository()
-        self.matcher: Optional[JobMatcher] = None
+        self.db: Optional[DatabaseRepository] = None
+        self.job_matcher: Optional[JobMatcher] = None
+        self.task_router: Optional[TaskRouter] = None
+        self.job_linker: Optional[JobLinker] = None
 
-        # Thread pool for parallel processing
-        self.executor = ThreadPoolExecutor(
-            max_workers=settings.max_concurrent_emails
+    async def initialize(self) -> None:
+        """Initialize all components."""
+        # Database
+        self.db = DatabaseRepository(settings.database_url)
+        await self.db.initialize()
+
+        # Gmail
+        self.gmail_client.authenticate()
+
+        # Job matcher (needs DB)
+        self.job_matcher = JobMatcher(self.db)
+
+        # Task router
+        self.task_router = TaskRouter(self.db, self.ticktick_client)
+
+        # Job linker
+        self.job_linker = JobLinker(self.db, self.job_matcher)
+
+        print("✓ Saturnus_Magister initialized")
+
+    async def shutdown(self) -> None:
+        """Cleanup resources."""
+        if self.db:
+            await self.db.close()
+        print("✓ Shutdown complete")
+
+    async def process_new_emails(self) -> dict:
+        """
+        Main processing loop:
+        1. Fetch new emails from Gmail (inbox + sent)
+        2. Classify with Grok
+        3. Match to Nyx_Venatrix jobs
+        4. Route to TickTick
+        5. Record analytics
+
+        Returns:
+            Processing statistics
+        """
+        stats = {
+            "inbox_processed": 0,
+            "sent_processed": 0,
+            "matched": 0,
+            "needs_review": 0,
+            "errors": 0,
+        }
+
+        # Process inbox
+        print("Fetching inbox emails...")
+        inbox_emails = await self.gmail_client.get_inbox_messages(
+            max_results=50,
+            only_unread=False  # Process all to catch up
         )
 
-    async def initialize(self):
-        await self.db.connect()
-        self.matcher = JobMatcher(self.db)
+        for email in inbox_emails:
+            try:
+                # Check if already processed
+                existing = await self.db.get_email_by_gmail_id(email.gmail_id)
+                if existing and existing.processed:
+                    continue
 
-        # Verify free-threading is active
-        if hasattr(sys, '_is_gil_enabled'):
-            gil_status = "DISABLED" if not sys._is_gil_enabled() else "ENABLED"
-            print(f"GIL Status: {gil_status}")
-            if sys._is_gil_enabled():
-                print("⚠️  Running with GIL enabled. Consider using python3.14t")
+                await self._process_inbound_email(email)
+                stats["inbox_processed"] += 1
 
-    async def shutdown(self):
-        self.executor.shutdown(wait=True)
-        await self.db.close()
+            except Exception as e:
+                print(f"Error processing email {email.gmail_id}: {e}")
+                stats["errors"] += 1
 
-    async def process_new_emails(self):
-        """
-        Fetch and process all new emails.
-        Uses free-threading for parallel classification/matching.
-        """
-        # Fetch emails
-        inbound = self.gmail.get_emails(label="INBOX", max_results=50)
-        sent = self.gmail.get_emails(label="SENT", max_results=50)
+        # Process sent folder
+        print("Fetching sent emails...")
+        sent_emails = await self.gmail_client.get_sent_messages(max_results=50)
 
-        # Filter unprocessed
-        emails_to_process = []
-        for email in inbound:
-            if not await self.db.is_email_processed(email['id']):
-                emails_to_process.append((email, EmailDirection.INBOUND))
+        for email in sent_emails:
+            try:
+                existing = await self.db.get_email_by_gmail_id(email.gmail_id)
+                if existing and existing.processed:
+                    continue
 
-        for email in sent:
-            if not await self.db.is_email_processed(email['id']):
-                emails_to_process.append((email, EmailDirection.OUTBOUND))
+                await self._process_outbound_email(email)
+                stats["sent_processed"] += 1
 
-        if not emails_to_process:
-            print("No new emails to process")
-            return
+            except Exception as e:
+                print(f"Error processing sent email {email.gmail_id}: {e}")
+                stats["errors"] += 1
 
-        print(f"Processing {len(emails_to_process)} emails in parallel...")
+        print(f"\nProcessing complete: {stats}")
+        return stats
 
-        # Process in parallel using free-threading
-        # Each thread handles: classify → match → route
-        loop = asyncio.get_event_loop()
+    async def _process_inbound_email(self, email: EmailModel) -> None:
+        """Process inbound email (from companies/recruiters)."""
+        # 1. Classify with Grok
+        print(f"  Classifying: {email.subject}")
+        classification = await self.classifier.classify(email)
 
-        tasks = [
-            loop.run_in_executor(
-                self.executor,
-                self._process_email_sync,
-                email,
-                direction
+        email.category = classification.category
+        email.sentiment = classification.sentiment
+        email.confidence = classification.confidence
+
+        # 2. Save email to database
+        saved_email = await self.db.create_email(email)
+
+        # 3. Match to job application
+        best_match, needs_review = await self.job_matcher.match_email_to_job(email)
+
+        if best_match:
+            # Save match
+            match = EmailJobMatchModel(
+                email_id=saved_email.id,
+                job_id=best_match.job_id,
+                match_score=best_match.match_score,
+                match_method=MatchMethod.AUTO if not needs_review else MatchMethod.AI_DISAMBIGUATION,
+                match_signals=best_match.match_signals,
+                needs_review=needs_review,
             )
-            for email, direction in emails_to_process
-        ]
+            await self.db.create_match(match)
 
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+            # Get job details from Nyx_Venatrix
+            job_details = await self.db.get_job_by_id(best_match.job_id)
+            effort_level = job_details.get("effort_level") if job_details else None
+        else:
+            effort_level = None
+            needs_review = True
 
-        # Report results
-        success = sum(1 for r in results if not isinstance(r, Exception))
-        errors = [r for r in results if isinstance(r, Exception)]
+        # 4. Queue for manual review if needed
+        if needs_review:
+            reason = "no_match_found" if not best_match else "low_confidence_match"
+            if classification.category == EmailCategory.UNKNOWN:
+                reason = "ambiguous_category"
 
-        print(f"Processed {success}/{len(emails_to_process)} emails")
-        if errors:
-            for e in errors:
-                print(f"  Error: {e}")
-
-    def _process_email_sync(self, email: dict, direction: EmailDirection):
-        """
-        Synchronous email processing (runs in thread).
-        This is where free-threading shines - each thread does real work.
-        """
-        # Need to run async code in thread
-        return asyncio.run(self._process_single_email(email, direction))
-
-    async def _process_single_email(self, email: dict, direction: EmailDirection):
-        """Process a single email through full pipeline."""
-
-        try:
-            # 1. Classify
-            analysis = self.classifier.analyze(
-                email['subject'],
-                email['body'],
-                email['sender'] if direction == EmailDirection.INBOUND else email.get('recipient', ''),
-                direction
-            )
-
-            # 2. Match to job
-            matches = await self.matcher.find_matching_jobs(
-                analysis,
-                email['date'],
-                email['sender']
+            await self.db.add_to_review_queue(
+                ManualReviewQueueModel(
+                    email_id=saved_email.id,
+                    reason=reason,
+                    reason_details={
+                        "classification": classification.dict(),
+                        "best_match": best_match.dict() if best_match else None,
+                    },
+                    priority=8 if classification.category in [
+                        EmailCategory.INTERVIEW_INVITE,
+                        EmailCategory.OFFER
+                    ] else 5,
+                )
             )
 
-            best_match = matches[0] if matches else None
-            requires_review = False
+        # 5. Record analytics (ALL responses)
+        if classification.category in [
+            EmailCategory.REJECTION,
+            EmailCategory.INTERVIEW_INVITE,
+            EmailCategory.OFFER,
+        ]:
+            analytics = ResponseAnalyticsModel(
+                email_id=saved_email.id,
+                job_id=best_match.job_id if best_match else None,
+                response_type=classification.category.value,
+                response_stage="unknown",  # Could be extracted from email
+                company_name=best_match.company_name if best_match else None,
+                position_title=best_match.position_title if best_match else None,
+                effort_level=effort_level,
+                had_feedback=False,  # TODO: Extract from classification
+                application_date=best_match.application_date if best_match else None,
+                response_date=email.received_at.date(),
+                days_to_response=(
+                    (email.received_at.date() - best_match.application_date.date()).days
+                    if best_match and best_match.application_date else None
+                ),
+            )
+            await self.db.record_response(analytics)
 
-            if best_match:
-                if best_match.confidence < settings.auto_match_threshold:
-                    requires_review = True
-            elif analysis.company_name:
-                requires_review = True
-
-            # 3. Get effort level from job
-            effort_level = EffortLevel.MEDIUM
-            if best_match and not requires_review:
-                job = await self.db.get_job_by_id(best_match.job_id)
-                if job:
-                    effort_level = EffortLevel(job.get('effort_level', 'medium'))
-
-            # 4. Save to database (ALL responses recorded)
-            email_db_id = await self.db.save_email({
-                'gmail_id': email['id'],
-                'thread_id': email['thread_id'],
-                'direction': direction.value,
-                'sender': email['sender'],
-                'recipient': email.get('recipient'),
-                'subject': email['subject'],
-                'body_text': email['body'],
-                'received_at': email['date'],
-                'gmail_link': email['link'],
-                'category': analysis.category.value,
-                'sentiment': analysis.sentiment.value,
-                'confidence': analysis.confidence,
-                'ai_summary': analysis.summary,
-                'extracted_datetime': analysis.extracted_datetime,
-                'extracted_deadline': analysis.extracted_deadline,
-                'raw_analysis': analysis.model_dump(),
-                'processed_at': datetime.utcnow(),
-                'matched_job_id': best_match.job_id if best_match and not requires_review else None,
-                'match_confidence': best_match.confidence if best_match else None,
-                'requires_manual_review': requires_review
-            })
-
-            # 5. Queue for review if needed
-            if requires_review:
-                await self.db.add_to_review_queue(
-                    email_db_id,
-                    "low_confidence_match" if matches else "no_match_found",
-                    [m.model_dump() for m in matches[:5]]
+            # Check if company should be blocked (high rejection rate)
+            if classification.category == EmailCategory.REJECTION and best_match:
+                rejection_count = await self.db.get_company_rejection_count(
+                    best_match.company_name,
+                    days=365
                 )
+                if rejection_count >= 3:
+                    print(f"⚠️  Company {best_match.company_name} has {rejection_count} rejections")
 
-            # 6. Route to TickTick
-            await self._route_to_ticktick(
-                email_db_id, email, analysis,
-                best_match, effort_level, direction
+        # 6. Route to TickTick (unless needs review)
+        if not needs_review or classification.category in [
+            EmailCategory.INTERVIEW_INVITE,
+            EmailCategory.OFFER
+        ]:
+            await self.task_router.route_email(
+                email=saved_email,
+                classification=classification,
+                job_match=best_match,
+                effort_level=effort_level,
             )
 
-            return {"email_id": email['id'], "status": "success"}
+        # 7. Mark as processed
+        await self.db.mark_email_processed(saved_email.id, error=None)
+        print(f"  ✓ {classification.category.value} ({classification.sentiment.value})")
 
-        except Exception as e:
-            print(f"Error processing {email['id']}: {e}")
-            raise
+    async def _process_outbound_email(self, email: EmailModel) -> None:
+        """Process outbound email (sent by user)."""
+        # Classify
+        classification = await self.classifier.classify(email)
 
-    async def _route_to_ticktick(
-        self,
-        email_db_id,
-        email: dict,
-        analysis,
-        match,
-        effort_level: EffortLevel,
-        direction: EmailDirection
-    ):
-        """Route email to TickTick: Eisenhower, Work, Calendar, Countdown."""
+        email.category = classification.category
+        email.sentiment = classification.sentiment
+        email.confidence = classification.confidence
 
-        # Skip outbound emails for task creation (just record)
-        if direction == EmailDirection.OUTBOUND:
-            if analysis.category == "sent_availability" and analysis.extracted_datetime:
-                await self.ticktick.create_calendar_event(
-                    title=f"Proposed Interview: {analysis.company_name or 'Company'}",
-                    start_date=analysis.extracted_datetime,
-                    content=f"You proposed this time.\n\nEmail: {email['link']}"
-                )
-            return
+        # Save
+        saved_email = await self.db.create_email(email)
 
-        company = analysis.company_name or "Unknown Company"
-        position = analysis.position_title or "Position"
+        # Outbound emails: try to match to job but don't require manual review
+        best_match, _ = await self.job_matcher.match_email_to_job(email)
 
-        match analysis.category:
-            case "interview_invite":
-                if analysis.extracted_datetime:
-                    results = await self.ticktick.create_interview_entry(
-                        company=company,
-                        position=position,
-                        interview_time=analysis.extracted_datetime,
-                        email_link=email['link'],
-                        summary=analysis.summary,
-                        duration_minutes=analysis.duration_minutes
+        if best_match:
+            match = EmailJobMatchModel(
+                email_id=saved_email.id,
+                job_id=best_match.job_id,
+                match_score=best_match.match_score,
+                match_method=MatchMethod.AUTO,
+                match_signals=best_match.match_signals,
+                needs_review=False,
+            )
+            await self.db.create_match(match)
+
+        # For sent availability/interview times, create calendar placeholder
+        if classification.category == EmailCategory.SENT_AVAILABILITY:
+            if classification.extracted_data and "proposed_times" in classification.extracted_data:
+                # Create calendar events for proposed times
+                for proposed_time in classification.extracted_data["proposed_times"][:3]:
+                    try:
+                        start_time = datetime.fromisoformat(proposed_time)
+                        await self.task_router._create_calendar_placeholder(
+                            saved_email.id,
+                            f"Proposed: {best_match.company_name if best_match else 'Interview'}",
+                            start_time,
+                        )
+                    except Exception:
+                        pass
+
+        # Mark as processed
+        await self.db.mark_email_processed(saved_email.id)
+        print(f"  ✓ Sent: {classification.category.value}")
+
+    async def sync_ticktick_tasks(self) -> int:
+        """Sync unsynced tasks to TickTick."""
+        unsynced = await self.db.get_unsynced_tasks(limit=50)
+
+        synced_count = 0
+        for task in unsynced:
+            try:
+                if task.is_calendar_event:
+                    # Create calendar event
+                    from src.clients.ticktick import TickTickCalendarEvent
+                    event = TickTickCalendarEvent(
+                        title=task.title,
+                        start_date=task.start_time,
+                        end_date=task.end_time,
+                        content=task.content,
+                        is_all_day=task.is_all_day,
+                        reminders=task.reminders,
                     )
-                    await self.db.update_email_ticktick_ids(
-                        email_db_id,
-                        task_id=results.get('eisenhower', {}).get('id'),
-                        calendar_event_id=results.get('calendar', {}).get('id')
+                    result = await self.ticktick_client.create_calendar_event(event)
+                else:
+                    # Create task
+                    from src.clients.ticktick import TickTickTask, TaskPriority
+                    tt_task = TickTickTask(
+                        title=task.title,
+                        content=task.content,
+                        project_id=task.ticktick_project_id,
+                        priority=TaskPriority(task.priority),
+                        due_date=task.due_date,
+                        tags=task.tags,
+                        reminders=task.reminders,
                     )
+                    result = await self.ticktick_client.create_task(tt_task)
 
-            case "assignment":
-                if analysis.extracted_deadline:
-                    results = await self.ticktick.create_assignment_entry(
-                        company=company,
-                        position=position,
-                        deadline=analysis.extracted_deadline,
-                        email_link=email['link'],
-                        summary=analysis.summary
-                    )
-                    await self.db.update_email_ticktick_ids(
-                        email_db_id,
-                        task_id=results.get('eisenhower', {}).get('id'),
-                        calendar_event_id=results.get('calendar', {}).get('id')
-                    )
+                # Mark as synced
+                await self.db.mark_task_synced(
+                    task.id,
+                    ticktick_task_id=result.get("id"),
+                    error=None,
+                )
+                synced_count += 1
 
-            case "offer":
-                priority, tags = self.ticktick.get_priority_and_tags("positive", "offer")
-                await self.ticktick.create_eisenhower_task(
-                    title=f"🟢 OFFER: {company} - {position}",
-                    content=f"{analysis.summary}\n\nEmail: {email['link']}",
-                    quadrant=EisenhowerQuadrant.Q1,
-                    priority=priority,
-                    tags=tags
-                )
-                await self.ticktick.create_work_task(
-                    title=f"Review offer: {company}",
-                    content=f"Position: {position}\n\n{analysis.summary}\n\nEmail: {email['link']}",
-                    priority=priority,
-                    tags=["offer"]
-                )
+            except Exception as e:
+                print(f"Error syncing task {task.id}: {e}")
+                await self.db.mark_task_synced(task.id, ticktick_task_id=None, error=str(e))
 
-            case "rejection":
-                # Always recorded in DB, but only create task if high effort
-                result = await self.ticktick.create_rejection_entry(
-                    company=company,
-                    position=position,
-                    email_link=email['link'],
-                    summary=analysis.summary,
-                    effort_level=effort_level.value
-                )
-                if result:
-                    await self.db.update_email_ticktick_ids(
-                        email_db_id,
-                        task_id=result.get('id')
-                    )
+        if synced_count > 0:
+            print(f"✓ Synced {synced_count} tasks to TickTick")
 
-            case "follow_up_needed":
-                priority, tags = self.ticktick.get_priority_and_tags(
-                    analysis.sentiment.value if hasattr(analysis.sentiment, 'value') else analysis.sentiment,
-                    "follow_up_needed"
-                )
-                await self.ticktick.create_eisenhower_task(
-                    title=f"📧 Reply to: {company}",
-                    content=f"{analysis.action_required or analysis.summary}\n\nReceived: {email['date']}\nEmail: {email['link']}",
-                    quadrant=EisenhowerQuadrant.Q2,
-                    priority=priority,
-                    tags=tags
-                )
-                await self.ticktick.create_work_task(
-                    title=f"Reply to {company}",
-                    content=f"{analysis.action_required or analysis.summary}\n\nEmail: {email['link']}",
-                    priority=priority,
-                    tags=["reply_needed"]
-                )
+        return synced_count

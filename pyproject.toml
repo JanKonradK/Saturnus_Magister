@@ -2,7 +2,7 @@
 name = "saturnus-magister"
 version = "1.0.0"
 requires-python = ">=3.14"
-description = "Autonomous temporal orchestration of email and calendar systems"
+description = "Autonomous email orchestration system syncing Gmail, Grok classification, Nyx_Venatrix job matching, and TickTick routing for intelligent task management"
 
 dependencies = [
     "pydantic>=2.10",
@@ -28,9 +28,9 @@ dev = [
 ]
 
 [project.scripts]
-saturnus = "src.main:main"
-review = "src.cli.review:main"
-setup-ticktick = "src.cli.setup:main"
+saturnus = "src.main:cli"
+saturnus-review = "src.cli.review:main"
+saturnus-setup = "src.cli.setup:main"
 
 [tool.ruff]
 line-length = 88

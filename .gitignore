@@ -4,7 +4,7 @@
 *.pickle
 *.json
 !.github
-!docs
+#docs
 
 # Python
 __pycache__/
@@ -54,3 +54,4 @@ htmlcov/
 # Logs
 logs/
 *.log
+docs/
