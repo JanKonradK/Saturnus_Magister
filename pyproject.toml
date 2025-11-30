@@ -1,0 +1,41 @@
+[project]
+name = "saturnus-magister"
+version = "1.0.0"
+requires-python = ">=3.14"
+description = "Autonomous temporal orchestration of email and calendar systems"
+
+dependencies = [
+    "pydantic>=2.10",
+    "pydantic-settings>=2.6",
+    "asyncpg>=0.30",
+    "httpx>=0.28",
+    "aiofiles>=24.1",
+    "google-api-python-client>=2.150",
+    "google-auth-oauthlib>=1.2",
+    "openai>=1.55",
+    "rapidfuzz>=3.10",
+    "rich>=13.9",
+    "typer>=0.13",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.8",
+    "mypy>=1.13",
+]
+
+[project.scripts]
+saturnus = "src.main:main"
+review = "src.cli.review:main"
+setup-ticktick = "src.cli.setup:main"
+
+[tool.ruff]
+line-length = 88
+target-version = "py314"
+
+[tool.mypy]
+python_version = "3.14"
+strict = true

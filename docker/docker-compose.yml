@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  email-processor:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    env_file: ../.env
+    volumes:
+      - ../token.pickle:/app/token.pickle
+      - ../credentials.json:/app/credentials.json
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    networks:
+      - deepapply-net
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-jobtracker}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-jobtracker}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../src/db/migrations:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    networks:
+      - deepapply-net
+
+networks:
+  deepapply-net:
+    name: deepapply-network
+
+volumes:
+  postgres_data:
