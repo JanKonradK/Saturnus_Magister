@@ -51,6 +51,6 @@ class Settings(BaseSettings):
     enable_auto_reply: bool = False
     auto_reply_confidence_threshold: float = 0.95
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 settings = Settings()
