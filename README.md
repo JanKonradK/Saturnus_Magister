@@ -1,199 +1,134 @@
 # Saturnus_Magister
 
-> **"Master of Time"** - Autonomous email orchestration system for job application management
+Automated email processing and task management system. Monitors Gmail, classifies emails using AI, and creates structured tasks in TickTick with Eisenhower Matrix prioritization.
 
-Saturnus_Magister monitors your Gmail, classifies emails with Grok AI, matches them to your [Nyx_Venatrix](https://github.com/JanKonradK/Nyx_Venatrix) job applications, and intelligently routes everything to TickTick using the Eisenhower Matrix.
+## Features
 
-## 🎯 What It Does
+- **Email Monitoring**: Continuous Gmail inbox and sent folder monitoring
+- **AI Classification**: Automatic email categorization using OpenAI-compatible API
+- **Task Automation**: Creates TickTick tasks with priority, tags, and due dates
+- **Calendar Integration**: Syncs time-sensitive items to Google Calendar via TickTick
+- **Eisenhower Matrix**: Automatic routing to Q1-Q4 quadrants based on urgency/importance
+- **Analytics**: Tracks all processed emails for insights
 
-```
-Gmail Inbox → Grok Classification → Job Matching → TickTick Routing → Analytics
-     ↓              ↓                      ↓                ↓              ↓
- Monitors      Categories          Links to Jobs    Eisenhower     Tracks All
- 24/7          14 types            (Nyx_Venatrix)   + Calendar     Responses
-```
-
-## ✨ Key Features
-
-- 🤖 **AI-Powered**: Grok 4.1 Fast classification with sentiment analysis
-- 🎯 **Smart Matching**: Multi-signal fuzzy matching to job applications
-- 📊 **Eisenhower Matrix**: Automatic task prioritization (Q1-Q4)
-- 📅 **Calendar Sync**: Auto-creates events for interviews and deadlines
-- 📈 **Analytics**: Tracks ALL responses (positive + negative) for insights
-- 🔍 **Manual Review**: Queue for uncertain matches with interactive TUI
-
-## 🚀 Quick Start
-
-```bash
-# 1. Install
-pip install -e .
-
-# 2. Setup
-cp .env.example .env
-# Edit .env with your credentials
-
-# 3. Run migrations
-psql $DATABASE_URL -f src/db/migrations/001_initial.sql
-psql $DATABASE_URL -f src/db/migrations/002_add_countdown.sql
-
-# 4. Authenticate
-python scripts/ticktick_oauth.py   # TickTick OAuth
-python -m src.cli.setup             # Get project IDs
-
-# 5. Run
-python -m src.main
-```
-
-**First run**: Gmail OAuth opens in browser → authenticate → system starts monitoring
-
-## 📚 Documentation
-
-- **[Quick Start Guide](docs/QUICKSTART.md)** - Get running in 10 minutes
-- **[Implementation Details](docs/IMPLEMENTATION.md)** - Architecture and design
-- **[Production Deployment](docs/PRODUCTION_READY.md)** - Deployment checklist
-- **[Complete Summary](docs/DEPLOYMENT_SUMMARY.md)** - Everything in one place
-
-### Folder-Specific Documentation
-
-Each major directory contains its own README explaining its purpose:
-
-- [`src/`](src/README.md) - Core application code
-- [`src/ai/`](src/ai/README.md) - AI classification and job matching
-- [`src/clients/`](src/clients/README.md) - External API integrations
-- [`src/db/`](src/db/README.md) - Database models and migrations
-- [`src/services/`](src/services/README.md) - Business logic orchestration
-- [`src/cli/`](src/cli/README.md) - Command-line tools
-- [`tests/`](tests/README.md) - Test suite
-- [`scripts/`](scripts/README.md) - Setup and utility scripts
-- [`docker/`](docker/README.md) - Containerization configs
-
-## 🏗️ Architecture
+## Architecture
 
 ```
 saturnus_magister/
 ├── src/
-│   ├── ai/              # Grok classification + job matching
+│   ├── ai/              # Classification and matching logic
 │   ├── clients/         # Gmail, TickTick, Google Calendar APIs
 │   ├── db/              # PostgreSQL models, repository, migrations
-│   ├── services/        # Email processor, task router, job linker
-│   ├── cli/             # Manual review TUI, setup tools
-│   ├── config.py        # Pydantic settings
+│   ├── services/        # Email processor, task router
+│   ├── cli/             # Manual review and setup tools
 │   └── main.py          # Entry point
 ├── tests/               # Unit tests
-├── scripts/             # OAuth and utility scripts
-├── docker/              # Docker + docker-compose
-└── docs/                # Comprehensive documentation
+├── scripts/             # Setup and simulation scripts
+└── docker/              # Containerization
 ```
 
-## ⚙️ Requirements
+## Quick Start
 
-- **Python 3.14+** (preferably free-threaded build)
-- **PostgreSQL** (shared with Nyx_Venatrix)
-- **Gmail API** access
-- **TickTick** account with Eisenhower Matrix
-- **xAI API key** (for Grok)
+### Prerequisites
 
-## 🔧 Configuration
+- Python 3.14+ (3.13 acceptable)
+- PostgreSQL
+- Gmail API access
+- TickTick account
+- OpenAI-compatible API endpoint
 
-Create `.env` with:
+### Installation
 
+```bash
+# Setup virtual environment
+uv venv .venv --python 3.14
+source .venv/bin/activate
+
+# Install dependencies
+uv pip install -e ".[dev]"
+
+# Run migrations
+psql $DATABASE_URL -f src/db/migrations/001_initial.sql
+psql $DATABASE_URL -f src/db/migrations/002_add_countdown.sql
+```
+
+### Configuration
+
+Create `.env`:
 ```env
-# Database (shared with Nyx_Venatrix)
 DATABASE_URL=postgresql://user:password@host:5432/database
+OPENAI_API_KEY=your-key-here
+OPENAI_BASE_URL=https://api.openai.com/v1  # Or compatible endpoint
+OPENAI_MODEL=gpt-4-turbo
 
-# xAI / Grok
-XAI_API_KEY=xai-your-key-here
-
-# TickTick
 TICKTICK_ACCESS_TOKEN=...
 TICKTICK_CLIENT_ID=...
 TICKTICK_CLIENT_SECRET=...
-TICKTICK_Q1_PROJECT=...  # Get from `saturnus-setup`
-TICKTICK_Q2_PROJECT=...
-TICKTICK_Q3_PROJECT=...
-TICKTICK_Q4_PROJECT=...
+TICKTICK_Q1_PROJECT=...  # Urgent + Important
+TICKTICK_Q2_PROJECT=...  # Not Urgent + Important
+TICKTICK_Q3_PROJECT=...  # Urgent + Not Important
+TICKTICK_Q4_PROJECT=...  # Not Urgent + Not Important
 TICKTICK_WORK_PROJECT=...
 ```
 
-See [`.env.example`](.env.example) for all options.
-
-## 📊 Email Processing Pipeline
-
-1. **Fetch** emails from Gmail (inbox + sent)
-2. **Classify** with Grok (category + sentiment + data extraction)
-3. **Match** to Nyx_Venatrix jobs (fuzzy matching + AI disambiguation)
-4. **Route** to TickTick (Eisenhower + Work + Calendar + Countdown)
-5. **Record** analytics (all responses tracked)
-6. **Queue** uncertain matches for manual review
-
-## 🎯 Eisenhower Matrix Routing
-
-| Quadrant | When | Examples |
-|----------|------|----------|
-| **Q1** Urgent + Important | Interview invites, offers | High priority, immediate action |
-| **Q2** Not Urgent + Important | Assignments, follow-ups | Schedule properly, important work |
-| **Q3** Urgent + Not Important | Quick acknowledgments | Delegate or handle quickly |
-| **Q4** Not Urgent + Not Important | Low-effort rejections | Record only, minimal action |
-
-## 🛠️ CLI Tools
+### Run
 
 ```bash
-saturnus              # Main email processor
-saturnus-review       # Manual review queue (interactive TUI)
-saturnus-setup        # Get TickTick project IDs
-```
+# Production
+python -m src.main
 
-## 🐳 Docker
+# Simulation (no API keys needed)
+PYTHONPATH=. python scripts/simulate_full_run.py
 
-```bash
-# Standalone
+# Docker
 docker-compose -f docker/docker-compose.yml up -d
-
-# With Nyx_Venatrix network
-docker-compose -f docker/docker-compose.yml up saturnus -d
 ```
 
-See [`docker/README.md`](docker/README.md) for details.
+## Email Categories
 
-## 📈 Analytics
+System classifies emails into 14 categories:
+- `interview_invite`, `assignment`, `rejection`, `offer`
+- `info`, `follow_up_needed`, `unknown`
+- `sent_application`, `sent_availability`, `sent_follow_up`, `sent_documents`
 
-Saturnus_Magister records **all** email responses (positive + negative) for:
+Each receives automatic sentiment analysis and data extraction (dates, deadlines, etc.).
 
-- Success rate by company
-- Average response time by stage
-- Rejection patterns
-- Effort vs. outcome correlation
-- Company blocklist suggestions
+## Eisenhower Matrix Routing
 
-## 🔄 Integration with Nyx_Venatrix
+| Quadrant | Criteria | Example |
+|----------|----------|---------|
+| Q1 (Urgent + Important) | Time-sensitive, high priority | Interview invitations, urgent deadlines |
+| Q2 (Not Urgent + Important) | Important but schedulable | Assignments, long-term planning |
+| Q3 (Urgent + Not Important) | Quick actions required | Acknowledgments, minor updates |
+| Q4 (Not Urgent + Not Important) | Low value | Informational only |
 
-Shares PostgreSQL database and reads from `applied_jobs` table:
-- Links emails to job applications
-- Tracks effort levels
-- Analyzes application outcomes
-
-## 🚧 Roadmap
-
-- **Phase 2**: Cloud migration (AWS Lambda / GCP Cloud Run)
-- **Phase 3**: Auto-reply capability
-- **Phase 4**: Full calendar scheduling automation
-
-## 🧪 Testing
+## CLI Tools
 
 ```bash
-pytest                 # Run tests
-mypy src              # Type checking
-ruff check src        # Linting
+saturnus              # Main processor
+saturnus-review       # Manual review queue
+saturnus-setup        # TickTick project ID helper
 ```
 
-## 📝 License
+## Development
 
-MIT License
+```bash
+# Tests
+pytest
 
-## 🔗 Related Projects
+# Type checking
+mypy src
 
-- [Nyx_Venatrix](https://github.com/JanKonradK/Nyx_Venatrix) - Autonomous job application agent
+# Linting
+ruff check src
+```
 
----
+## Documentation
 
-**Built for Python 3.14 free-threading** | **Production-ready** | **~3,000 lines of code**
+- [`SETUP_GUIDE.md`](SETUP_GUIDE.md) - Environment setup
+- [`SIMULATION.md`](SIMULATION.md) - Running simulation mode
+- Folder-specific READMEs in each `src/` subdirectory
+
+## License
+
+MIT

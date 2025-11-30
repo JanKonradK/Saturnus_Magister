@@ -1,5 +1,5 @@
 """
-Email classifier using Grok 4.1 Fast.
+Email classifier using OpenAI-compatible API.
 Determines category, sentiment, and extracts structured data from emails.
 """
 
@@ -12,60 +12,58 @@ from src.config import settings
 
 
 class EmailClassifier:
-    """Grok-powered email classification."""
+    """AI-powered email classification."""
 
-    SYSTEM_PROMPT = """You are an expert email classifier for job application responses.
+    SYSTEM_PROMPT = """Analyze emails and extract structured information.
 
-Your task is to analyze emails and extract:
-1. **Category**: The type of email (interview_invite, assignment, rejection, offer, info, follow_up_needed, unknown)
-2. **Sentiment**: Whether this is positive, negative, or neutral news
-3. **Confidence**: Your confidence in the classification (0.0-1.0)
-4. **Extracted Data**: Any important dates, deadlines, or actionable information
+Extract:
+1. **Category**: Email type (interview_invite, assignment, rejection, offer, info, follow_up_needed, unknown)
+2. **Sentiment**: positive, negative, or neutral
+3. **Confidence**: Classification confidence (0.0-1.0)
+4. **Extracted Data**: Dates, deadlines, actionable information
 
 # Category Definitions
 
-## Inbound Emails
-- **interview_invite**: Contains interview date/time or scheduling request. May ask for availability.
-- **assignment**: Take-home test, coding challenge, case study with a deadline.
-- **rejection**: Application rejected, position filled, or no longer considering candidate.
-- **offer**: Job offer, compensation discussion, or intent to hire.
-- **info**: Status updates, application confirmations, no immediate action needed.
-- **follow_up_needed**: Requires response, asks questions, requests documents or additional information.
-- **unknown**: Cannot confidently determine the category.
+## Inbound
+- **interview_invite**: Interview scheduling or availability request
+- **assignment**: Task with deadline (test, challenge, case study)
+- **rejection**: Negative response, position filled
+- **offer**: Offer, compensation discussion, intent to hire
+- **info**: Status updates, confirmations, no action needed
+- **follow_up_needed**: Response required, questions asked
+- **unknown**: Cannot confidently categorize
 
-## Outbound Emails (from user)
-- **sent_application**: Job application submission, cover letter.
-- **sent_availability**: Response with proposed interview times.
-- **sent_follow_up**: Following up on application status.
-- **sent_documents**: Sending resume, portfolio, references.
-- **info**: Thank you notes, general responses.
+## Outbound
+- **sent_application**: Application submission
+- **sent_availability**: Proposed times/availability
+- **sent_follow_up**: Status inquiry
+- **sent_documents**: Document submission
+- **info**: General responses, acknowledgments
 
 # Sentiment Rules
-- **positive**: Interview invites, offers, moving to next stage, positive feedback.
-- **negative**: Rejections, position filled, application not moving forward.
-- **neutral**: Informational updates, acknowledgments, questions.
+- **positive**: Advancement, positive feedback, opportunity
+- **negative**: Rejection, cancellation, negative outcome
+- **neutral**: Informational, questions, acknowledgments
 
-# Extraction Guidelines
-Look for and extract:
-- Interview dates/times (format as ISO 8601)
-- Assignment deadlines
-- Response deadlines ("please reply by...")
-- Salary/compensation information
-- Next steps mentioned
-- Contact information for interviewers
+# Extraction
+Extract and format as ISO 8601:
+- Dates/times
+- Deadlines
+- Contact information
+- Next steps
 
-Respond in JSON format:
+Response format (JSON):
 {
     "category": "interview_invite",
     "sentiment": "positive",
     "confidence": 0.95,
-    "reasoning": "Email contains interview scheduling request with specific dates",
+    "reasoning": "Brief explanation",
     "extracted_data": {
-        "interview_date": "2025-12-15T14:00:00Z",
-        "interviewer_name": "Jane Smith",
-        "meeting_link": "https://...",
+        "date": "2025-12-15T14:00:00Z",
         "deadline": null,
-        "salary_mentioned": false
+        "contact_name": "Name",
+        "meeting_link": "https://...",
+        "notes": "Additional context"
     }
 }
 """
@@ -79,17 +77,17 @@ Respond in JSON format:
 **Body**:
 {body}
 
-Classify this email and extract relevant information."""
+Classify and extract relevant data."""
 
     def __init__(self):
         self.client = AsyncOpenAI(
-            api_key=settings.xai_api_key,
-            base_url=settings.xai_base_url,
+            api_key=settings.openai_api_key,
+            base_url=settings.openai_base_url,
         )
-        self.model = settings.xai_model
+        self.model = settings.openai_model
 
     async def classify(self, email: EmailModel) -> EmailClassification:
-        """Classify an email using Grok."""
+        """Classify an email using AI."""
         # Prepare email body
         body = email.body_text or email.body_html or ""
         if len(body) > 10000:

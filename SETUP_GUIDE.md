@@ -1,19 +1,19 @@
 # 🛠️ Saturnus_Magister Setup Guide
 
-This guide explains how to set up the development environment for Saturnus_Magister. We use **`uv`** for dependency management to ensure speed, consistency, and isolation from your system Python.
+Setup instructions for the development environment. Uses **`uv`** for dependency management to ensure speed, consistency, and isolation from system Python.
 
-## 🧐 Why do we do this?
+## Background
 
-### 1. The "Global Python" Problem
-Your operating system (Linux/WSL2) uses Python (likely version 3.12) for its own internal tasks.
-- **Risk**: If you install libraries globally (e.g., `pip install pandas`), you might break system tools or cause version conflicts between projects.
-- **Solution**: We **NEVER** install packages globally. We use **Virtual Environments**.
+### 1. Virtual Environment Isolation
+System Python (typically 3.12 on Linux/WSL2) is used by the operating system for internal tasks.
+- **Risk**: Installing packages globally can break system tools or cause version conflicts between projects.
+- **Solution**: Virtual environments provide per-project isolation.
 
-### 2. Why `uv`?
-`uv` is a modern, extremely fast Python package installer and resolver.
-- It manages Python versions for us (e.g., installing Python 3.14 locally without touching your system).
-- It creates virtual environments instantly.
-- It resolves dependencies faster than pip.
+### 2. Using `uv`
+Modern, fast Python package installer and resolver.
+- Manages Python versions locally without affecting system installation
+- Creates virtual environments instantly
+- Resolves dependencies faster than pip
 
 ---
 
@@ -31,34 +31,34 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 ### 1. Create Virtual Environment
-We want to use Python 3.14 (or the latest supported version) specifically for this project.
+Create a virtual environment using Python 3.14 for this project.
 
 ```bash
-# Create a virtual environment named '.venv' using Python 3.14
+# Create .venv with Python 3.14
 uv venv .venv --python 3.14
 ```
 
-*This creates a folder `.venv/` containing a standalone Python installation just for this project.*
+*Creates `.venv/` directory containing standalone Python installation.*
 
-### 2. Activate the Environment
-You need to tell your shell to use this environment instead of the global one.
+### 2. Activate Environment
+Activate the virtual environment to use it instead of system Python.
 
 ```bash
 source .venv/bin/activate
 ```
 
-*You should see `(.venv)` appear in your terminal prompt.*
+*Terminal prompt will show `(.venv)` when active.*
 
 ### 3. Install Dependencies
-We install the libraries defined in `pyproject.toml`.
+Install packages defined in `pyproject.toml`.
 
 ```bash
-# Install project in editable mode (-e) with dev dependencies
+# Install in editable mode with dev dependencies
 uv pip install -e ".[dev]"
 ```
 
-### 4. Generate Lockfile (Optional but Recommended)
-To ensure everyone uses the *exact* same versions, we compile a `requirements.txt`.
+### 4. Generate Lockfile (Optional)
+Create `requirements.txt` for reproducible builds.
 
 ```bash
 uv pip compile pyproject.toml -o requirements.txt

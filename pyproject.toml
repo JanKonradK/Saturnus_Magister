@@ -2,7 +2,7 @@
 name = "saturnus-magister"
 version = "1.0.0"
 requires-python = ">=3.14"
-description = "Autonomous email orchestration system syncing Gmail, Grok classification, Nyx_Venatrix job matching, and TickTick routing for intelligent task management"
+description = "Automated email processing system with AI classification, task management, and Eisenhower Matrix routing"
 
 dependencies = [
     "pydantic>=2.10",
