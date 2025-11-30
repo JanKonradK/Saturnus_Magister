@@ -22,10 +22,10 @@ class Settings(BaseSettings):
         # Future: "https://www.googleapis.com/auth/gmail.send"
     ]
 
-    # OpenAI-compatible API
-    openai_api_key: str = Field(..., validation_alias="OPENAI_API_KEY")
-    openai_model: str = "gpt-4-turbo"
-    openai_base_url: str = "https://api.openai.com/v1"
+    # AI Agent (OpenAI-compatible API)
+    agent_api_key: str = Field(..., validation_alias="AGENT_API_KEY")
+    agent_model: str = "grok-4-1-fast-reasoning"
+    agent_base_url: str = "https://api.x.ai/v1"
 
     # TickTick
     ticktick_access_token: str = Field(..., validation_alias="TICKTICK_ACCESS_TOKEN")

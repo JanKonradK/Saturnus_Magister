@@ -35,7 +35,7 @@ saturnus_magister/
 - PostgreSQL
 - Gmail API access
 - TickTick account
-- OpenAI-compatible API endpoint
+- AI agent with OpenAI-compatible API (xAI, OpenAI, Anthropic, etc.)
 
 ### Installation
 
@@ -57,9 +57,10 @@ psql $DATABASE_URL -f src/db/migrations/002_add_countdown.sql
 Create `.env`:
 ```env
 DATABASE_URL=postgresql://user:password@host:5432/database
-OPENAI_API_KEY=your-key-here
-OPENAI_BASE_URL=https://api.openai.com/v1  # Or compatible endpoint
-OPENAI_MODEL=gpt-4-turbo
+
+AGENT_API_KEY=your-key-here
+AGENT_BASE_URL=https://api.x.ai/v1  # Or any OpenAI-compatible endpoint
+AGENT_MODEL=grok-4-1-fast-reasoning
 
 TICKTICK_ACCESS_TOKEN=...
 TICKTICK_CLIENT_ID=...

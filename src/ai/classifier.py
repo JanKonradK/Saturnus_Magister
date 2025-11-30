@@ -81,10 +81,10 @@ Classify and extract relevant data."""
 
     def __init__(self):
         self.client = AsyncOpenAI(
-            api_key=settings.openai_api_key,
-            base_url=settings.openai_base_url,
+            api_key=settings.agent_api_key,
+            base_url=settings.agent_base_url,
         )
-        self.model = settings.openai_model
+        self.model = settings.agent_model
 
     async def classify(self, email: EmailModel) -> EmailClassification:
         """Classify an email using AI."""

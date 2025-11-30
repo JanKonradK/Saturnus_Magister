@@ -49,8 +49,8 @@ def check_environment():
             console.print("[dim]ℹ️  GIL enabled - consider python3.14t for parallel processing[/dim]")
 
     # Verify critical settings
-    if "example" in settings.openai_api_key or "your-key" in settings.openai_api_key:
-        console.print("[bold red]❌ Error: OPENAI_API_KEY not configured in .env[/bold red]")
+    if "example" in settings.agent_api_key or "your-key" in settings.agent_api_key:
+        console.print("[bold red]❌ Error: AGENT_API_KEY not configured in .env[/bold red]")
         sys.exit(1)
 
 async def main():
