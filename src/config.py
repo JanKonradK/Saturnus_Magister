@@ -19,7 +19,8 @@ class Settings(BaseSettings):
     gmail_token_path: str = "token.pickle"
     gmail_scopes: list[str] = [
         "https://www.googleapis.com/auth/gmail.readonly",
-        # Future: "https://www.googleapis.com/auth/gmail.send"
+        "https://www.googleapis.com/auth/gmail.modify",
+        "https://www.googleapis.com/auth/gmail.compose",
     ]
 
     # AI Agent (OpenAI-compatible API)

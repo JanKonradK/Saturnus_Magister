@@ -6,103 +6,122 @@
 
 ## ⚡️ Overview
 
-Managing a high volume of emails—especially during job searches or busy project periods—can be overwhelming. Important deadlines get buried, and context switching destroys productivity.
-
-**Saturnus Magister** solves this by acting as your personal executive assistant. It monitors your communications 24/7, understands the context of every email using Large Language Models (LLMs), and intelligently routes actionable items to your task management system.
-
-It doesn't just "forward" emails; it **understands** them.
+Managing a high volume of emails—especially during busy periods—can be overwhelming. **Saturnus Magister** acts as your personal executive assistant. It monitors your communications 24/7, understands the context of every email using Large Language Models (LLMs), and intelligently routes actionable items to your task management system.
 
 ### Key Capabilities
 
--   🧠 **Cognitive Classification**: Uses state-of-the-art LLMs (via OpenAI-compatible APIs) to categorize emails with human-level nuance. It distinguishes between a generic update and an urgent interview invitation.
--   🎯 **Eisenhower Matrix Routing**: Automatically prioritizes tasks into Q1 (Urgent/Important) through Q4, ensuring you focus on what actually moves the needle.
--   📅 **Smart Scheduling**: Detects dates and deadlines in email bodies and syncs them directly to your calendar via TickTick.
--   🔍 **Contextual Matching**: Links incoming correspondence to your existing projects or job applications using fuzzy matching and AI disambiguation.
--   📊 **Insightful Analytics**: Tracks response rates, sentiment trends, and interaction history to give you a high-level view of your communications.
+-   🧠 **Cognitive Classification**: Uses state-of-the-art LLMs to categorize emails with human-level nuance.
+-   🎯 **Eisenhower Matrix Routing**: Prioritizes tasks into Q1 (Urgent/Important) through Q4.
+-   📅 **Smart Scheduling**: Detects dates/deadlines and syncs them to your calendar.
+-   ✍️ **Auto-Reply Agent**: Generates context-aware draft replies for common scenarios (e.g., interview confirmations).
+-   📊 **Analytics**: Tracks response rates and interaction history.
 
-## 🛠️ Technology Stack
+---
 
-Built with modern, production-grade Python standards:
+## 🛠️ Setup Guide
 
--   **Python 3.14+**: Leveraging the latest features, including free-threading support for high-performance parallel processing.
--   **PostgreSQL 16+**: Robust, relational data storage for complex relationship tracking.
--   **`uv`**: Blazing fast Python package and project management.
--   **Pydantic**: Strict data validation and settings management.
--   **Rich**: Beautiful, informative terminal output for CLI tools.
+We use **`uv`** for fast, isolated environment management.
 
-## 🚀 Getting Started
+### 1. Prerequisites
 
-We've designed the setup process to be as smooth as possible. You can run Saturnus Magister directly on your machine or within a Docker container.
-
-### Prerequisites
-
--   **Python 3.14+**
+-   **Python 3.14+** (Free-threading supported)
 -   **PostgreSQL** database
--   **Gmail API** credentials (OAuth 2.0)
--   **TickTick** account (Premium recommended for full API access)
--   **LLM API Key** (OpenAI, Anthropic, xAI, or local equivalent)
+-   **Gmail API Credentials** (`credentials.json`)
+-   **TickTick Account**
+-   **LLM API Key** (OpenAI, xAI, Anthropic, etc.)
 
-### Quick Install
+### 2. Installation
 
-1.  **Clone and Setup**:
+```bash
+# 1. Install uv (if needed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 2. Create Virtual Environment (Python 3.14)
+uv venv .venv --python 3.14
+source .venv/bin/activate
+
+# 3. Install Dependencies
+uv pip install -e ".[dev]"
+```
+
+### 3. Configuration
+
+1.  **Database**: Ensure PostgreSQL is running.
     ```bash
-    # We recommend using 'uv' for a fast, isolated environment
-    uv venv .venv --python 3.14
-    source .venv/bin/activate
-    uv pip install -e ".[dev]"
-    ```
-
-2.  **Database Initialization**:
-    ```bash
-    # Apply the schema to your PostgreSQL instance
+    # Initialize Schema
     psql $DATABASE_URL -f src/db/migrations/001_initial.sql
     psql $DATABASE_URL -f src/db/migrations/002_add_countdown.sql
     ```
 
-3.  **Configuration**:
-    Copy `.env.example` to `.env` and populate your credentials.
+2.  **Environment Variables**:
+    Copy `.env.example` to `.env` and fill in your keys.
     ```bash
     cp .env.example .env
     ```
 
-    *Tip: Use the included helper script to easily find your TickTick project IDs:*
+3.  **Gmail Auth**:
+    Download your OAuth 2.0 Client ID JSON from Google Cloud Console, rename it to `credentials.json`, and place it in the project root.
+
+4.  **TickTick Auth**:
+    Run the helper to get your token and project IDs:
     ```bash
+    python scripts/ticktick_oauth.py
     saturnus-setup
     ```
 
-4.  **Launch**:
-    ```bash
-    python -m src.main
-    ```
+---
 
-For a detailed walkthrough, please refer to the [Setup Guide](SETUP_GUIDE.md).
+## 📂 Project Structure & Files
 
-## 🧪 Simulation Mode
+-   **`src/`**: Source code.
+    -   `ai/`: LLM logic for classification and reply generation.
+    -   `clients/`: API wrappers (Gmail, TickTick).
+    -   `services/`: Core business logic (Processor, Router).
+-   **`pyproject.toml`**: Python project configuration and dependencies.
+-   **`requirements.txt`**: Lockfile ensuring reproducible builds (generated from pyproject.toml).
+-   **`Makefile`**: Shortcut commands for common tasks (e.g., `make run`, `make test`).
+-   **`credentials.json`**: (User provided) Google OAuth secrets. **Do not commit this.**
+-   **`token.pickle`**: (Generated) Saved Gmail session token.
 
-Want to see it in action without configuring API keys? We've included a comprehensive simulation mode. This runs the entire processing pipeline using mocked services, allowing you to verify the logic and see how the system handles different email scenarios.
+---
 
+## 🚀 Usage
+
+### Run the System
+```bash
+python -m src.main
+```
+
+### Simulation Mode
+Test the pipeline with mock data (no API keys needed):
 ```bash
 PYTHONPATH=. python scripts/simulate_full_run.py
 ```
 
-## 📂 Project Structure
+### Manual Review
+Interactive terminal UI for ambiguous cases:
+```bash
+saturnus-review
+```
 
-The codebase is organized for clarity and scalability:
+---
 
--   `src/ai/`: Core intelligence. Contains the `EmailClassifier` and `JobMatcher` logic.
--   `src/services/`: Business logic layer. The `EmailProcessor` orchestrates the flow between components.
--   `src/clients/`: Robust API wrappers for Gmail, TickTick, and Google Calendar.
--   `src/db/`: Database models and asynchronous repository layer.
--   `src/cli/`: Terminal-based tools for setup and manual review.
+## 🤖 Auto-Reply Feature
+
+The system can draft replies for specific categories (e.g., `interview_invite`, `follow_up_needed`).
+
+-   **Draft Mode** (Default): Creates a draft in Gmail for you to review.
+-   **Auto-Send**: Can be enabled in `.env` (use with caution!).
+
+---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Whether it's a bug fix, a new feature, or a documentation improvement, feel free to open a pull request. Please ensure you run the test suite before submitting:
-
+Contributions welcome! Please run tests before submitting:
 ```bash
 pytest
 ```
 
 ## 📄 License
 
-This project is licensed under the MIT License.
+MIT License

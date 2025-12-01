@@ -25,6 +25,7 @@ from src.db.models import (
 )
 from src.services.task_router import TaskRouter
 from src.services.job_linker import JobLinker
+from src.ai.reply_generator import ReplyGenerator
 from src.config import settings
 
 
@@ -35,6 +36,7 @@ class EmailProcessor:
         self.gmail_client = GmailClient()
         self.ticktick_client = TickTickClient()
         self.classifier = EmailClassifier()
+        self.reply_generator = ReplyGenerator()
         self.db: Optional[DatabaseRepository] = None
         self.job_matcher: Optional[JobMatcher] = None
         self.task_router: Optional[TaskRouter] = None
@@ -228,7 +230,21 @@ class EmailProcessor:
                 effort_level=effort_level,
             )
 
-        # 7. Mark as processed
+        # 7. Generate Auto-Reply Draft (if enabled)
+        if settings.enable_auto_reply and classification.confidence >= settings.auto_reply_confidence_threshold:
+            draft_body = await self.reply_generator.generate_draft(email, classification)
+            if draft_body:
+                print(f"  ✍️  Drafting reply for {classification.category.value}...")
+                draft_id = await self.gmail_client.create_draft(
+                    to=email.sender_email,
+                    subject=f"Re: {email.subject}",
+                    body=draft_body,
+                    thread_id=email.thread_id
+                )
+                if draft_id:
+                    print(f"  ✅ Draft created: {draft_id}")
+
+        # 8. Mark as processed
         await self.db.mark_email_processed(saved_email.id, error=None)
         print(f"  ✓ {classification.category.value} ({classification.sentiment.value})")
 

@@ -262,3 +262,32 @@ class GmailClient:
         except HttpError as e:
             print(f"Error marking message as read: {e}")
             return False
+
+    async def create_draft(self, to: str, subject: str, body: str, thread_id: Optional[str] = None) -> Optional[str]:
+        """Create a draft email."""
+        from email.mime.text import MIMEText
+        import base64
+
+        if not self.service:
+            self.authenticate()
+
+        try:
+            message = MIMEText(body)
+            message['to'] = to
+            message['subject'] = subject
+
+            raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+            body = {'message': {'raw': raw}}
+
+            if thread_id:
+                body['message']['threadId'] = thread_id
+
+            draft = self.service.users().drafts().create(
+                userId='me',
+                body=body
+            ).execute()
+
+            return draft['id']
+        except Exception as e:
+            print(f"Error creating draft: {e}")
+            return None

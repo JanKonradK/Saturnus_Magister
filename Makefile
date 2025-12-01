@@ -20,6 +20,9 @@ run: ## Run the main application
 review: ## Run manual review queue
 	python -m src.cli.review
 
+simulate: ## Run simulation mode
+	PYTHONPATH=. python scripts/simulate_full_run.py
+
 test: ## Run tests
 	pytest
 
