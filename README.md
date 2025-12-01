@@ -1,85 +1,71 @@
 # Saturnus_Magister
 
-Automated email processing and task management system. Monitors Gmail, classifies emails using AI, and creates structured tasks in TickTick with Eisenhower Matrix prioritization.
+Automated email processing system with AI classification, task management, and Eisenhower Matrix routing.
+
+## Tech Stack
+
+- Python 3.14+ (free-threading)
+- PostgreSQL 16+
+- Gmail API
+- TickTick API
+- OpenAI-compatible AI agent (xAI, OpenAI, Anthropic, etc.)
 
 ## Features
 
-- **Email Monitoring**: Continuous Gmail inbox and sent folder monitoring
-- **AI Classification**: Automatic email categorization using OpenAI-compatible API
-- **Task Automation**: Creates TickTick tasks with priority, tags, and due dates
-- **Calendar Integration**: Syncs time-sensitive items to Google Calendar via TickTick
-- **Eisenhower Matrix**: Automatic routing to Q1-Q4 quadrants based on urgency/importance
-- **Analytics**: Tracks all processed emails for insights
+- Continuous Gmail monitoring (inbox + sent)
+- AI-powered email classification and data extraction
+- Eisenhower Matrix task routing (Q1-Q4)
+- TickTick task creation with priorities, tags, due dates
+- Google Calendar sync via TickTick
+- Email analytics and manual review queue
 
-## Architecture
-
-```
-saturnus_magister/
-├── src/
-│   ├── ai/              # Classification and matching logic
-│   ├── clients/         # Gmail, TickTick, Google Calendar APIs
-│   ├── db/              # PostgreSQL models, repository, migrations
-│   ├── services/        # Email processor, task router
-│   ├── cli/             # Manual review and setup tools
-│   └── main.py          # Entry point
-├── tests/               # Unit tests
-├── scripts/             # Setup and simulation scripts
-└── docker/              # Containerization
-```
-
-## Quick Start
-
-### Prerequisites
-
-- Python 3.14+ (3.13 acceptable)
-- PostgreSQL
-- Gmail API access
-- TickTick account
-- AI agent with OpenAI-compatible API (xAI, OpenAI, Anthropic, etc.)
-
-### Installation
+## Installation
 
 ```bash
-# Setup virtual environment
+# Setup environment
 uv venv .venv --python 3.14
 source .venv/bin/activate
-
-# Install dependencies
 uv pip install -e ".[dev]"
 
-# Run migrations
+# Run database migrations
 psql $DATABASE_URL -f src/db/migrations/001_initial.sql
 psql $DATABASE_URL -f src/db/migrations/002_add_countdown.sql
 ```
 
-### Configuration
+## Configuration
 
 Create `.env`:
 ```env
 DATABASE_URL=postgresql://user:password@host:5432/database
 
 AGENT_API_KEY=your-key-here
-AGENT_BASE_URL=https://api.x.ai/v1  # Or any OpenAI-compatible endpoint
+AGENT_BASE_URL=https://api.x.ai/v1
 AGENT_MODEL=grok-4-1-fast-reasoning
 
 TICKTICK_ACCESS_TOKEN=...
 TICKTICK_CLIENT_ID=...
 TICKTICK_CLIENT_SECRET=...
-TICKTICK_Q1_PROJECT=...  # Urgent + Important
-TICKTICK_Q2_PROJECT=...  # Not Urgent + Important
-TICKTICK_Q3_PROJECT=...  # Urgent + Not Important
-TICKTICK_Q4_PROJECT=...  # Not Urgent + Not Important
+TICKTICK_Q1_PROJECT=...
+TICKTICK_Q2_PROJECT=...
+TICKTICK_Q3_PROJECT=...
+TICKTICK_Q4_PROJECT=...
 TICKTICK_WORK_PROJECT=...
 ```
 
-### Run
+Get TickTick credentials: `python scripts/ticktick_oauth.py`
+Get project IDs: `saturnus-setup`
+
+## Usage
 
 ```bash
 # Production
 python -m src.main
 
-# Simulation (no API keys needed)
+# Simulation (no credentials)
 PYTHONPATH=. python scripts/simulate_full_run.py
+
+# Manual review queue
+saturnus-review
 
 # Docker
 docker-compose -f docker/docker-compose.yml up -d
@@ -87,48 +73,45 @@ docker-compose -f docker/docker-compose.yml up -d
 
 ## Email Categories
 
-System classifies emails into 14 categories:
-- `interview_invite`, `assignment`, `rejection`, `offer`
-- `info`, `follow_up_needed`, `unknown`
-- `sent_application`, `sent_availability`, `sent_follow_up`, `sent_documents`
+**Inbound**: `interview_invite`, `assignment`, `rejection`, `offer`, `info`, `follow_up_needed`, `unknown`
+**Outbound**: `sent_application`, `sent_availability`, `sent_follow_up`, `sent_documents`, `info`
 
-Each receives automatic sentiment analysis and data extraction (dates, deadlines, etc.).
+Each email receives sentiment analysis (`positive`, `negative`, `neutral`) and data extraction (dates, deadlines, contacts).
 
-## Eisenhower Matrix Routing
+## Eisenhower Routing
 
-| Quadrant | Criteria | Example |
-|----------|----------|---------|
-| Q1 (Urgent + Important) | Time-sensitive, high priority | Interview invitations, urgent deadlines |
-| Q2 (Not Urgent + Important) | Important but schedulable | Assignments, long-term planning |
-| Q3 (Urgent + Not Important) | Quick actions required | Acknowledgments, minor updates |
-| Q4 (Not Urgent + Not Important) | Low value | Informational only |
+| Quadrant | Priority | Examples |
+|----------|----------|----------|
+| Q1 (Urgent + Important) | High | Time-sensitive deadlines |
+| Q2 (Not Urgent + Important) | Medium-High | Important work, planning |
+| Q3 (Urgent + Not Important) | Medium-Low | Quick acknowledgments |
+| Q4 (Not Urgent + Not Important) | Low | Informational only |
 
-## CLI Tools
+## Architecture
 
-```bash
-saturnus              # Main processor
-saturnus-review       # Manual review queue
-saturnus-setup        # TickTick project ID helper
+```
+src/
+├── ai/              # Classification, matching
+├── clients/         # Gmail, TickTick, GCal APIs
+├── db/              # Models, repository, migrations
+├── services/        # Email processor, task router
+├── cli/             # Review queue, setup tools
+└── main.py          # Entry point
 ```
 
 ## Development
 
 ```bash
-# Tests
-pytest
-
-# Type checking
-mypy src
-
-# Linting
-ruff check src
+pytest              # Tests
+mypy src            # Type checking
+ruff check src      # Linting
 ```
 
 ## Documentation
 
-- [`SETUP_GUIDE.md`](SETUP_GUIDE.md) - Environment setup
-- [`SIMULATION.md`](SIMULATION.md) - Running simulation mode
-- Folder-specific READMEs in each `src/` subdirectory
+- [`SETUP_GUIDE.md`](SETUP_GUIDE.md) - Development environment
+- [`SIMULATION.md`](SIMULATION.md) - Testing without credentials
+- Folder-specific READMEs in `src/` subdirectories
 
 ## License
 

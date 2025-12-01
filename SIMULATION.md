@@ -1,31 +1,19 @@
-# 🧪 Running the Simulation
+# Simulation Mode
 
-This document explains how to run the full Saturnus_Magister pipeline in simulation mode without needing real API credentials.
+Demonstrates the complete processing pipeline without requiring real API credentials.
 
-## What is the Simulation?
+## What It Does
 
-`scripts/simulate_full_run.py` demonstrates the complete email processing workflow by mocking all external services:
-- **Mock Gmail**: Returns 3 synthetic emails (interview invite, rejection, assignment)
-- **Mock Grok**: Returns pre-defined classifications
-- **Mock JobMatcher**: Returns high-confidence job matches
-- **Mock Database**: Simulates DB operations in-memory
-- **Mock TickTick**: Prints what tasks *would* be created
+Mocks all external services (Gmail, AI agent, TickTick, PostgreSQL) and processes 3 synthetic emails through the classification → matching → routing workflow.
 
-## Running the Simulation
-
-### 1. Ensure Virtual Environment is Active
-
-```bash
-source .venv/bin/activate
-```
-
-### 2. Run the Simulation
+## Running
 
 ```bash
 PYTHONPATH=. python scripts/simulate_full_run.py
 ```
 
-**Expected Output:**
+## Expected Output
+
 ```
 ╭────────────────────────────────────────────╮
 │ Saturnus_Magister Simulation               │
@@ -49,15 +37,12 @@ Fetching inbox emails...
 ✨ Simulation Complete!
 ```
 
-## What This Demonstrates
+## Verification
 
-The simulation proves that:
-✅ All modules import correctly
-✅ The orchestration logic flows properly
-✅ Classification → Matching → Routing pipeline works
-✅ Error handling is robust
-✅ The system is ready for production (just needs real credentials)
+Confirms:
+- Module imports resolve correctly
+- Classification → matching → routing pipeline functions
+- Error handling works
+- System ready for production deployment
 
-## Next Steps
-
-Once you've verified the simulation works, configure your `.env` file with real API credentials to process actual emails!
+Once simulation passes, configure `.env` with real credentials.

@@ -1,86 +1,71 @@
-# 🛠️ Saturnus_Magister Setup Guide
+# Setup Guide
 
-Setup instructions for the development environment. Uses **`uv`** for dependency management to ensure speed, consistency, and isolation from system Python.
+Development environment setup using `uv` for dependency management.
 
-## Background
+## Tech Stack
 
-### 1. Virtual Environment Isolation
-System Python (typically 3.12 on Linux/WSL2) is used by the operating system for internal tasks.
-- **Risk**: Installing packages globally can break system tools or cause version conflicts between projects.
-- **Solution**: Virtual environments provide per-project isolation.
+- **Python**: 3.14+ (free-threading enabled)
+- **Database**: PostgreSQL 16+
+- **Package Manager**: `uv`
+- **Dependencies**: See `pyproject.toml`
 
-### 2. Using `uv`
-Modern, fast Python package installer and resolver.
-- Manages Python versions locally without affecting system installation
-- Creates virtual environments instantly
-- Resolves dependencies faster than pip
+## Installation
 
----
-
-## 🚀 Step-by-Step Setup
-
-### Prerequisites
-The only global tool you need is `uv`.
+### 1. Install `uv`
 
 ```bash
-# Check if installed
-uv --version
-
-# If not, install it:
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-### 1. Create Virtual Environment
-Create a virtual environment using Python 3.14 for this project.
+### 2. Create Virtual Environment
 
 ```bash
-# Create .venv with Python 3.14
 uv venv .venv --python 3.14
 ```
 
-*Creates `.venv/` directory containing standalone Python installation.*
-
-### 2. Activate Environment
-Activate the virtual environment to use it instead of system Python.
+### 3. Activate Environment
 
 ```bash
 source .venv/bin/activate
 ```
 
-*Terminal prompt will show `(.venv)` when active.*
-
-### 3. Install Dependencies
-Install packages defined in `pyproject.toml`.
+### 4. Install Dependencies
 
 ```bash
-# Install in editable mode with dev dependencies
 uv pip install -e ".[dev]"
 ```
 
-### 4. Generate Lockfile (Optional)
-Create `requirements.txt` for reproducible builds.
+### 5. Generate Requirements Lockfile
 
 ```bash
 uv pip compile pyproject.toml -o requirements.txt
 ```
 
----
-
-## 🏃‍♂️ Running the Project
-
-Always ensure your virtual environment is active (`source .venv/bin/activate`) before running commands.
+## Database Setup
 
 ```bash
-# Run the main processor
-python -m src.main
-
-# Run the simulation
-python scripts/simulate_full_run.py
+# Run migrations
+psql $DATABASE_URL -f src/db/migrations/001_initial.sql
+psql $DATABASE_URL -f src/db/migrations/002_add_countdown.sql
 ```
 
-## 🧹 Maintenance
+## Running
 
-To update dependencies:
-1. Edit `pyproject.toml`
-2. Run `uv pip install -e ".[dev]"`
-3. Run `uv pip compile pyproject.toml -o requirements.txt`
+```bash
+# Production
+python -m src.main
+
+# Simulation (no credentials required)
+PYTHONPATH=. python scripts/simulate_full_run.py
+
+# Tests
+pytest
+```
+
+## Dependency Updates
+
+```bash
+# Edit pyproject.toml, then:
+uv pip install -e ".[dev]"
+uv pip compile pyproject.toml -o requirements.txt
+```
