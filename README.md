@@ -1,24 +1,24 @@
-# Saturnus Magister 🪐
+# Saturnus Magister
 
 **Saturnus Magister** is an intelligent, autonomous email orchestration system designed to reclaim your time. It transforms your Gmail inbox into a structured, prioritized task list in TickTick, powered by advanced AI classification.
 
 ---
 
-## ⚡️ Overview
+## Overview
 
 Managing a high volume of emails—especially during busy periods—can be overwhelming. **Saturnus Magister** acts as your personal executive assistant. It monitors your communications 24/7, understands the context of every email using Large Language Models (LLMs), and intelligently routes actionable items to your task management system.
 
 ### Key Capabilities
 
--   🧠 **Cognitive Classification**: Uses state-of-the-art LLMs to categorize emails with human-level nuance.
--   🎯 **Eisenhower Matrix Routing**: Prioritizes tasks into Q1 (Urgent/Important) through Q4.
--   📅 **Smart Scheduling**: Detects dates/deadlines and syncs them to your calendar.
--   ✍️ **Auto-Reply Agent**: Generates context-aware draft replies for common scenarios (e.g., interview confirmations).
--   📊 **Analytics**: Tracks response rates and interaction history.
+-    **Cognitive Classification**: Uses state-of-the-art LLMs to categorize emails with human-level nuance.
+-    **Eisenhower Matrix Routing**: Prioritizes tasks into Q1 (Urgent/Important) through Q4.
+-    **Smart Scheduling**: Detects dates/deadlines and syncs them to your calendar.
+-    **Auto-Reply Agent**: Generates context-aware draft replies for common scenarios (e.g., interview confirmations).
+-    **Analytics**: Tracks response rates and interaction history.
 
 ---
 
-## 🛠️ Setup Guide
+## Setup Guide
 
 We use **`uv`** for fast, isolated environment management.
 
@@ -71,7 +71,7 @@ uv pip install -e ".[dev]"
 
 ---
 
-## 📂 Project Structure & Files
+## Project Structure & Files
 
 -   **`src/`**: Source code.
     -   `ai/`: LLM logic for classification and reply generation.
@@ -85,7 +85,7 @@ uv pip install -e ".[dev]"
 
 ---
 
-## 🚀 Usage
+## Usage
 
 ### Run the System
 ```bash
@@ -106,7 +106,7 @@ saturnus-review
 
 ---
 
-## 🤖 Auto-Reply Feature
+## Auto-Reply Feature
 
 The system can draft replies for specific categories (e.g., `interview_invite`, `follow_up_needed`).
 
@@ -115,13 +115,13 @@ The system can draft replies for specific categories (e.g., `interview_invite`, 
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions welcome! Please run tests before submitting:
 ```bash
 pytest
 ```
 
-## 📄 License
+## License
 
 MIT License
